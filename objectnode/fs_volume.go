@@ -424,9 +424,13 @@ func (v *volume) DeleteFile(path string) error {
 	}
 
 	// evict inode
+	log.LogWarnf("DeleteFile: data evict stream: inode(%v) ",
+		inode)
 	if err = v.ec.EvictStream(inode); err != nil {
 		return err
 	}
+	log.LogWarnf("DeleteFile: data evict : inode(%v) ",
+		inode)
 	if err = v.mw.Evict(inode); err != nil {
 		return err
 	}
@@ -578,6 +582,8 @@ func (v *volume) AbortMultipart(path string, multipartID string) (err error) {
 				multipartID, part.ID, part.Inode, err)
 			return
 		}
+		log.LogWarnf("AbortMultipart: meta inode evict fail: multipartID(%v) partID(%v) inode(%v) ",
+			multipartID, part.ID, part.Inode)
 		if err = v.mw.Evict(part.Inode); err != nil {
 			log.LogErrorf("AbortMultipart: meta inode evict fail: multipartID(%v) partID(%v) inode(%v) err(%v)",
 				multipartID, part.ID, part.Inode, err)
@@ -756,6 +762,8 @@ func (v *volume) appendInodeHash(h hash.Hash, inode uint64, total uint64, preAll
 			log.LogErrorf("appendInodeHash: data close stream fail: inode(%v) err(%v)",
 				inode, err)
 		}
+		log.LogWarnf("appendInodeHash: data evict stream: inode(%v)",
+			inode)
 		if evictErr := v.ec.EvictStream(inode); evictErr != nil {
 			log.LogErrorf("appendInodeHash: data evict stream: inode(%v) err(%v)",
 				inode, err)
@@ -813,38 +821,18 @@ func (v *volume) applyInodeToExistDentry(parentID uint64, name string, inode uin
 		return
 	}
 
-	defer func() {
-		if err != nil {
-			// rollback dentry update
-			if _, updateErr := v.mw.DentryUpdate_ll(parentID, name, oldInode); updateErr != nil {
-				log.LogErrorf("CompleteMultipart: meta rollback dentry update fail: parentID(%v) name(%v) inode(%v) err(%v)",
-					parentID, name, oldInode, updateErr)
-			}
-		}
-	}()
-
 	// unlink and evict old inode
 	if _, err = v.mw.InodeUnlink_ll(oldInode); err != nil {
-		log.LogErrorf("CompleteMultipart: meta unlink old inode fail: inode(%v) err(%v)",
+		log.LogWarnf("CompleteMultipart: meta unlink old inode fail: inode(%v) err(%v)",
 			oldInode, err)
-		return
 	}
-
-	defer func() {
-		if err != nil {
-			// rollback unlink
-			if _, linkErr := v.mw.InodeLink_ll(oldInode); linkErr != nil {
-				log.LogErrorf("CompleteMultipart: meta rollback inode unlink fail: inode(%v) err(%v)",
-					oldInode, linkErr)
-			}
-		}
-	}()
-
+	log.LogWarnf("CompleteMultipart: meta evict old inode : inode(%v)",
+		oldInode)
 	if err = v.mw.Evict(oldInode); err != nil {
-		log.LogErrorf("CompleteMultipart: meta evict old inode fail: inode(%v) err(%v)",
+		log.LogWarnf("CompleteMultipart: meta evict old inode fail: inode(%v) err(%v)",
 			oldInode, err)
-		return
 	}
+	err=nil
 	return
 }
 

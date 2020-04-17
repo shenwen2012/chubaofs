@@ -239,7 +239,7 @@ func (o *ObjectNode) deleteObjectsHandler(w http.ResponseWriter, r *http.Request
 			}()
 
 			err = vl.DeleteFile(obj.Key)
-			if err != nil {
+			if err != nil && err != syscall.ENOENT {
 				ossError := transferError(obj.Key, err)
 				deletedErrorsCh <- &ossError
 			} else {
@@ -739,7 +739,7 @@ func (o *ObjectNode) deleteObjectHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	err = vl.DeleteFile(object)
-	if err != nil {
+	if err != nil && err != syscall.ENOENT {
 		log.LogErrorf("deleteObjectHandler: volume delete file fail: requestID(%v) err(%v)", RequestIDFromRequest(r), err)
 		_ = InternalError.ServeResponse(w, r)
 		return

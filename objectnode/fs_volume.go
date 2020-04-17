@@ -426,13 +426,15 @@ func (v *volume) DeleteFile(path string) error {
 	// evict inode
 	log.LogWarnf("DeleteFile: data evict stream: inode(%v) ",
 		inode)
-	if err = v.ec.EvictStream(inode); err != nil {
-		return err
+	if evictErr := v.ec.EvictStream(inode); evictErr != nil {
+		log.LogWarnf("DeleteFile: evict stream fail: path(%v) inode(%v) err(%v)",
+			path, inode, evictErr)
 	}
 	log.LogWarnf("DeleteFile: data evict : inode(%v) ",
 		inode)
-	if err = v.mw.Evict(inode); err != nil {
-		return err
+	if evictErr := v.mw.Evict(inode); evictErr != nil {
+		log.LogWarnf("DeleteFile: meta evict inode fail: path(%v) inode(%v) err(%v)",
+			path, inode, evictErr)
 	}
 
 	return nil
@@ -496,7 +498,7 @@ func (v *volume) WritePart(path string, multipartId string, partId uint16, reade
 	}
 	defer func() {
 		if closeErr := v.ec.CloseStream(tempInodeInfo.Inode); closeErr != nil {
-			log.LogErrorf("WritePart: data close stream fail, inode(%v) err(%v)", tempInodeInfo.Inode, closeErr)
+			log.LogWarnf("WritePart: data close stream fail, inode(%v) err(%v)", tempInodeInfo.Inode, closeErr)
 		}
 	}()
 
@@ -577,16 +579,13 @@ func (v *volume) AbortMultipart(path string, multipartID string) (err error) {
 	}
 	// release part data
 	for _, part := range multipartInfo.Parts {
-		if _, err = v.mw.InodeUnlink_ll(part.Inode); err != nil {
-			log.LogErrorf("AbortMultipart: meta inode unlink fail: multipartID(%v) partID(%v) inode(%v) err(%v)",
-				multipartID, part.ID, part.Inode, err)
-			return
+		if _, unlinkErr := v.mw.InodeUnlink_ll(part.Inode); unlinkErr != nil {
+			log.LogWarnf("AbortMultipart: meta inode unlink fail: multipartID(%v) partID(%v) inode(%v) err(%v)",
+				multipartID, part.ID, part.Inode, unlinkErr)
 		}
-		log.LogWarnf("AbortMultipart: meta inode evict fail: multipartID(%v) partID(%v) inode(%v) ",
-			multipartID, part.ID, part.Inode)
-		if err = v.mw.Evict(part.Inode); err != nil {
-			log.LogErrorf("AbortMultipart: meta inode evict fail: multipartID(%v) partID(%v) inode(%v) err(%v)",
-				multipartID, part.ID, part.Inode, err)
+		if evictErr := v.mw.Evict(part.Inode); evictErr != nil {
+			log.LogWarnf("AbortMultipart: meta inode evict fail: multipartID(%v) partID(%v) inode(%v) err(%v)",
+				multipartID, part.ID, part.Inode, evictErr)
 		}
 		log.LogDebugf("AbortMultipart: multipart part data released: multipartID(%v) partID(%v) inode(%v)",
 			multipartID, part.ID, part.Inode)
@@ -731,8 +730,8 @@ func (v *volume) CompleteMultipart(path string, multipartID string) (fsFileInfo 
 	}
 	// delete part inodes
 	for _, part := range parts {
-		if err = v.mw.InodeDelete_ll(part.Inode); err != nil {
-			log.LogErrorf("CompleteMultipart: ")
+		if err = v.mw.InodeDelete_ll(part.Inode); err != nil && err != syscall.ENOENT {
+			log.LogErrorf("CompleteMultipart: destroy inode fail: inode(%v) err(%v)", part.Inode, err)
 		}
 	}
 
@@ -765,8 +764,8 @@ func (v *volume) appendInodeHash(h hash.Hash, inode uint64, total uint64, preAll
 		log.LogWarnf("appendInodeHash: data evict stream: inode(%v)",
 			inode)
 		if evictErr := v.ec.EvictStream(inode); evictErr != nil {
-			log.LogErrorf("appendInodeHash: data evict stream: inode(%v) err(%v)",
-				inode, err)
+			log.LogWarnf("appendInodeHash: data evict stream: inode(%v) err(%v)",
+				inode, evictErr)
 		}
 	}()
 
@@ -828,11 +827,11 @@ func (v *volume) applyInodeToExistDentry(parentID uint64, name string, inode uin
 	}
 	log.LogWarnf("CompleteMultipart: meta evict old inode : inode(%v)",
 		oldInode)
-	if err = v.mw.Evict(oldInode); err != nil {
+	if evictErr := v.mw.Evict(oldInode); evictErr != nil {
 		log.LogWarnf("CompleteMultipart: meta evict old inode fail: inode(%v) err(%v)",
-			oldInode, err)
+			oldInode, evictErr)
 	}
-	err=nil
+	err = nil
 	return
 }
 
@@ -927,12 +926,14 @@ func (v *volume) FileInfo(path string) (info *FSFileInfo, err error) {
 	// read file data
 	var fileInodeInfo *proto.InodeInfo
 	if fileInodeInfo, err = v.mw.InodeGet_ll(fileInode); err != nil {
+		log.LogErrorf("FileInfo: lookup success but get inode fail: path(%v) inode（%v) err(%v)",
+			path, fileInodeInfo, err)
 		return
 	}
 
 	var xAttrInfo *proto.XAttrInfo
 	if xAttrInfo, err = v.mw.XAttrGet_ll(fileInode, XAttrKeyOSSETag); err != nil {
-		logger.Error("FileInfo: meta get xattr fail, inode(%v) path(%v) err(%v)", fileInode, path, err)
+		log.LogErrorf("FileInfo: meta get xattr fail, inode(%v) path(%v) err(%v)", fileInode, path, err)
 		return
 	}
 	md5Val := xAttrInfo.XAttrs[XAttrKeyOSSETag]

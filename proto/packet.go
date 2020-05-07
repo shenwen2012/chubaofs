@@ -23,7 +23,10 @@ import (
 	"net"
 	"strconv"
 	"sync/atomic"
+	"syscall"
 	"time"
+
+	"github.com/chubaofs/chubaofs/util/log"
 
 	"github.com/chubaofs/chubaofs/util"
 	"github.com/chubaofs/chubaofs/util/buf"
@@ -538,7 +541,8 @@ func (p *Packet) ReadFromConn(c net.Conn, timeoutSec int) (err error) {
 	}
 
 	if p.Size < 0 {
-		return
+		log.LogErrorf("ReadFromConn: illegal packet size: %v", p)
+		return syscall.EBADMSG
 	}
 	size := p.Size
 	if (p.Opcode == OpRead || p.Opcode == OpStreamRead || p.Opcode == OpExtentRepairRead || p.Opcode == OpStreamFollowerRead) && p.ResultCode == OpInitResultCode {

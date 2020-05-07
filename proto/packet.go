@@ -526,8 +526,13 @@ func (p *Packet) ReadFromConn(c net.Conn, timeoutSec int) (err error) {
 		header = make([]byte, util.PacketHeaderSize)
 	}
 	defer Buffers.Put(header)
-	if _, err = io.ReadFull(c, header); err != nil {
+	var n int
+	if n, err = io.ReadFull(c, header); err != nil {
 		return
+	}
+	if n != util.PacketHeaderSize {
+		log.LogErrorf("ReadFromConn: read incomplete header")
+		return syscall.EBADMSG
 	}
 	if err = p.UnmarshalHeader(header); err != nil {
 		return
@@ -549,8 +554,14 @@ func (p *Packet) ReadFromConn(c net.Conn, timeoutSec int) (err error) {
 		size = 0
 	}
 	p.Data = make([]byte, size)
-	_, err = io.ReadFull(c, p.Data[:size])
-	return err
+	if n, err = io.ReadFull(c, p.Data[:size]); err != nil {
+		return err
+	}
+	if n != int(size) {
+		log.LogErrorf("ReadFromConn: read incomplete data")
+		return syscall.EBADMSG
+	}
+	return nil
 }
 
 // PacketOkReply sets the result code as OpOk, and sets the body as empty.

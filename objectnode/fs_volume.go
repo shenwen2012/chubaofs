@@ -578,9 +578,9 @@ func (v *Volume) PutObject(path string, reader io.Reader, opt *PutObjectOption) 
 					v.name, path, invisibleTempDataInode.Inode, name, value, err)
 				return nil, err
 			}
-			log.LogErrorf("PutObject: store user-defined metadata: "+
-				"volume(%v) path(%v) inode(%v) key(%v) value(%v) err(%v)",
-				v, name, path, invisibleTempDataInode.Inode, name, value)
+			log.LogDebugf("PutObject: store user-defined metadata: "+
+				"volume(%v) path(%v) inode(%v) key(%v) value(%v)",
+				v.name, path, invisibleTempDataInode.Inode, name, value)
 		}
 	}
 

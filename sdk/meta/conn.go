@@ -17,6 +17,7 @@ package meta
 import (
 	"fmt"
 	"net"
+	"syscall"
 	"time"
 
 	"github.com/chubaofs/chubaofs/util/errors"
@@ -127,6 +128,12 @@ func (mc *MetaConn) send(req *proto.Packet) (resp *proto.Packet, err error) {
 	err = resp.ReadFromConn(mc.conn, proto.ReadDeadlineTime)
 	if err != nil {
 		return nil, errors.Trace(err, "Failed to read from conn, req(%v)", req)
+	}
+	// Check if the ID and OpCode of the response are consistent with the request.
+	if resp.ReqID != req.ReqID || resp.Opcode != req.Opcode {
+		log.LogErrorf("send: the response packet mismatch with request: req(%v) resp(%v)",
+			req, resp)
+		return nil, syscall.EBADMSG
 	}
 	return resp, nil
 }

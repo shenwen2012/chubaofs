@@ -1770,6 +1770,7 @@ func (v *Volume) ListParts(path, uploadId string, maxParts, partNumberMarker uin
 	multipartInfo, err := v.mw.GetMultipart_ll(uploadId, parentId)
 	if err != nil {
 		log.LogErrorf("ListPart: get multipart upload fail: volume(%v) uploadID(%v) err(%v)", v.name, uploadId, err)
+		return
 	}
 
 	sessionParts := multipartInfo.Parts
